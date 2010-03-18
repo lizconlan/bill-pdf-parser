@@ -7,5 +7,4 @@ Requires the pdftotext utility, part of Xpdf http://www.foolabs.com/xpdf/downloa
 
 h2. Example Usage
 
-bc.
-  ruby ./parse.rb 'Digital Economy Bill [HL]' 2010089.pdf DigitalEconomyBill-089-0910.txt
+bc. ruby ./parse.rb 'Digital Economy Bill [HL]' 2010089.pdf DigitalEconomyBill-089-0910.txt
