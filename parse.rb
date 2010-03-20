@@ -14,6 +14,12 @@ unless output_file
   raise "must specify an output file name"
 end
 
+if pdf_file[0..3] == "http"
+  `curl -O #{pdf_file}`
+  parts = pdf_file.split("/")
+  pdf_file = parts.last
+end
+
 unless File.exists?(pdf_file)
   raise "pdf file not found"
 end
