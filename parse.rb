@@ -25,18 +25,21 @@ unless File.exists?(pdf_file)
 end
 
 #escape square brackets in the Bill name
-bill_name = bill_name.gsub("[", "\\[")
-bill_name = bill_name.gsub("]", "\\]")
-bill_name = bill_name.gsub(")", "\\(")
-bill_name = bill_name.gsub(")", "\\)")
+esc_bill_name = bill_name.gsub("[", "\\[")
+esc_bill_name = esc_bill_name.gsub("]", "\\]")
+esc_bill_name = esc_bill_name.gsub(")", "\\(")
+esc_bill_name = esc_bill_name.gsub(")", "\\)")
 
 #run pdftotext over the pdf file
 `pdftotext -layout #{pdf_file} _temp.txt`
 
 output = []
 
-RH_PAGENUM_FORMAT = Regexp.new "\\s*#{bill_name}\\s\\s+(\\d+|i+)$"
-LH_PAGENUM_FORMAT = Regexp.new "\\s*(\\d+|i+)\\s\\s+#{bill_name}$"
+RH_PAGENUM_FORMAT = Regexp.new "\\s*#{esc_bill_name}\\s\\s+(\\d+|i+)$"
+LH_PAGENUM_FORMAT = Regexp.new "\\s*(\\d+|i+)\\s\\s+#{esc_bill_name}$"
+
+
+enacted_line = ''
 
 #examine each line in the temp file
 File.open("_temp.txt").each do |line|
@@ -62,9 +65,86 @@ File.open("_temp.txt").each do |line|
     #strip out the line numbers
     line.gsub!(/\s\s+\d+$/, "")
     
-    output << line.strip
+    #normalize start of line spacing
+    if line =~ /(?:\s*)\d+(\s\s+)[\(A-Z]/
+      line.gsub!($1, "\t\t")
+    end
+    
+    #normalize title spacing
+    if line.strip == bill_name
+      line = "                     #{bill_name}"
+    end
+    
+    #normalize Schedule contents layout
+    if line =~ /(?:\s*)Schedule \d+(\s+--\s+)[A-Z]/
+      line.gsub!($1, " -- ")
+    end
+    if line =~ /(?:\s*)Part \d+(\s+--\s+)[A-Z]/
+      line.gsub!($1, " -- ")
+    end
+    
+    #handle the BE IT ENACTED bug
+    if line =~ /\s*(B\s+)by the Queen's most Excellent Majesty, by and with the advice and/
+      line.gsub!($1, " #{$1.gsub('B', ' ')}")
+      enacted_line = line
+      line = ""
+    end
+    if line =~ /\s*(E IT ENACTED)/
+      line.gsub!($1, "BE IT ENACTED")
+    end
+    
+    if line =~ /Short title and chapter\s\s+Extent of repeal/
+      line = "Short title                                   Extent of repeal"
+    end
+    
+    if line.strip =~ /(.*)\s\s+Act\s+(\d\d\d\d)\s+Section(.*)/
+      line = "#{$1} Act #{$2}           Section#{$3}"
+      if line =~ /(.*)(Act\s\d\d\d\d\s+Section.*)/
+        line = "#{$1.rstrip} #{$2}"
+      end
+    end
+    
+    if line.strip =~ /(.*)\s\s+Act\s+(\d\d\d\d)\s+In section(.*)/
+      line = "#{$1} Act #{$2}           In section#{$3}"
+      if line =~ /(.*)(Act\s\d\d\d\d\s+In section.*)/
+        line = "#{$1.rstrip} #{$2}"
+      end
+    end
+    
+    if line.strip =~ /(\(c\.\ \d+\))\s+([a-zA-Z].*)/
+      line = "#{$1}                               #{$2}"
+    end
+    
+    if line =~ /\s*\"*\([a-z](\)\s*)[\"a-z]/
+      line.gsub!($1, ")  ")
+    end
+    if line =~ /\s*\"*\([0-9]+(\)\s*)[\"a-zA-Z]/
+      line.gsub!($1, ")\t")
+    end
+    if line =~ /\s*\"*\([0-9]+[A-Z](\)\s*)[\"a-zA-Z]/
+      line.gsub!($1, ")\t")
+    end
+    if line =~ /\s*\"*\([ivx]+(\)\s*)[\"a-zA-Z]/
+      line.gsub!($1, ")\t")
+    end
+    if line =~ /\s*\"*\([ivx]+[a-z](\)\s*)[\"a-zA-Z]/
+      line.gsub!($1, ")\t")
+    end
+    
+    #do output
+    unless line.strip.empty?
+      output << line.strip
+      if line.strip == bill_name
+        output << ""
+      end
+      if line =~ /\s*(BE IT ENACTED)/
+        output << enacted_line
+      end
+    end
   end
 end
+
+output << ""
 
 puts output.length
 
